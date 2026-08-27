@@ -9,11 +9,11 @@ func NewOrder(id, customer string) Order {
 	}
 }
 
-func AddItem(o *Order, item Item) {
+func (o *Order) AddItem(item Item) {
 	o.Items = append(o.Items, item)
 }
 
-func RemoveItem(o *Order, sku string) bool {
+func (o *Order) RemoveItem(sku string) bool {
 	for i := range o.Items {
 		if o.Items[i].SKU == sku {
 			o.Items = append(o.Items[:i], o.Items[i+1:]...)
@@ -27,7 +27,7 @@ func CalcLineTotal(item Item) Money {
 	return item.Price * Money(item.Qty)
 }
 
-func CalcSubtotal(order Order) Money {
+func (order Order) CalcSubtotal() Money {
 	var sum Money
 
 	for _, item := range order.Items {
@@ -37,7 +37,7 @@ func CalcSubtotal(order Order) Money {
 	return sum
 }
 
-func CalcTotalQty(order Order) int {
+func (order Order) CalcTotalQty() int {
 	var total int
 
 	for _, item := range order.Items {
@@ -47,11 +47,11 @@ func CalcTotalQty(order Order) int {
 	return total
 }
 
-func AddItems(o *Order, items ...Item) {
+func (o *Order) AddItems(items ...Item) {
 	o.Items = append(o.Items, items...)
 }
 
-func FindItem(order Order, sku string) (Item, bool) {
+func (order Order) FindItem(sku string) (Item, bool) {
 	for _, item := range order.Items {
 		if item.SKU == sku {
 			return item, true
@@ -79,12 +79,37 @@ func IndexOfItem(order Order, sku string) (int, bool) {
 	return -1, false
 }
 
-func Compute(order Order) (t Totals, err error) {
+func ApplyDiscount(order Order, fns ...DiscountFn) Money {
+	var discount Money
+	for _, fn := range fns {
+		discount += fn(order)
+	}
+
+	sub := order.CalcSubtotal()
+
+	if discount > sub {
+		return sub
+	}
+
+	return discount
+}
+
+func Compute(order Order, bundle Money, tax TaxFn, shipping ShippingFn, discounts ...DiscountFn) (t Totals, err error) {
+	defer Track("Compute")()
 	if err = ValidateOrder(order); err != nil {
 		return Totals{}, err
 	}
 
-	t.Subtotal = CalcSubtotal(order)
+	t.Subtotal = order.CalcSubtotal()
+
+	if bundle > 0 {
+		t.Discount = bundle
+	} else {
+		t.Discount = ApplyDiscount(order, discounts...)
+	}
+
+	t.Tax = tax(order)
+	t.Shipping = shipping(order)
 	t.Total = t.Subtotal - t.Discount + t.Tax + t.Shipping
 
 	// return <- Implict return

@@ -22,6 +22,14 @@ func setCity(o *Order, city string) {
 	o.Meta["city"] = city // Map, Slice, func, pointer, chan
 }
 
+func setZone(o *Order, zone string) {
+	if o.Meta == nil {
+		o.Meta = map[string]string{}
+	}
+
+	o.Meta["zone"] = zone
+}
+
 func ValidateOrder(o Order) error {
 	if o.ID == "" {
 		return errors.New("Order ID is mandatory")
